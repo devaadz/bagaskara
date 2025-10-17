@@ -55,11 +55,23 @@
                             Rp {{ number_format($finalPrice, 0, ',', '.') }}
                           </span>
                         </p>
+
+                        {{-- Tambahkan keterangan diskon --}}
+                        <small class="text-success">
+                          @if ($discount->type_diskon == 0)
+                            Diskon {{ $discount->value }}% 
+                            (hemat Rp {{ number_format($data->price - $finalPrice, 0, ',', '.') }})
+                          @else
+                            Diskon Rp {{ number_format($discount->value, 0, ',', '.') }}
+                          @endif
+                        </small>
+
                       @else
                         <p class="fw-bold text-dark mb-0">
                           Rp {{ number_format($data->price, 0, ',', '.') }}
                         </p>
                       @endif
+
                     </div>
                     @if ($data->pivot->note !== null)    
                       <div class="card-footer rounded bg-secondary text-white shadow mb-3">
@@ -317,121 +329,128 @@
           </div>
         @endif 
     </div>
-   
     <!-- Modal -->
-    <div class="modal fade" id="payment" tabindex="-1" aria-labelledby="message" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-body">
-            
-            @if ($orders->where('status', '<', '2')->count() > 0)
-              <p>Ada order yang belum selesai nih :(</p>
-            @else
-            
-              @php
-                  $total = 0;
-                  $order_finish = $orders->where('status', '2');
-              @endphp
-              @foreach ($orders as $order)
-              <?php $total += $order->price ?>
-              @endforeach
-              <form action="/admin/transaction/payment" method="post">
-                @csrf
-                <div class="modal-body">
-                  <input type="hidden" name="order_type" value="0">
-                  <input type="hidden" name="customer_id" value="{{ $customer->id }}">
-      
-                  <input type="hidden" name="payment_status" value="0">
-                    @if($order->voucher_id)
-                      <div class="row">
-                        <label for="product" class="fw-bold">Voucher diterapkan</label>
-                        <div class="col-6">
-                          <div class="form-group">
-                            <label for="amount">{{ $order->voucher->name }}</label>
-                              @if($order->voucher->voucher_type === 0)
-                            <input class="form-control text-center" id="amount" type="text" name="" value="Potongan {{$order->voucher->value}}%" readonly="readonly">
-                            @elseif ($order->voucher->voucher_type === 1)
-                            <input class="form-control text-center" id="amount" type="text" name="" value="Potongan Rp.{{ $order->voucher->value }}" readonly="readonly">
-                            @endif
-                          </div>
-                        </div>
-                        <div class="col-6">
-                          <div class="form-group">
-                            <label for="amount">Jumlah Potongan</label>
-                            @if($order->voucher->voucher_type === 0)
-                            <input class="form-control text-center" id="amount" type="text" name="" value="-{{ $order->price * $order->voucher->value / 100  }}" readonly="readonly">
-                            @elseif ($order->voucher->voucher_type === 1)
-                            <input class="form-control text-center" id="amount" type="text" name="" value="-{{ $order->voucher->value }}" readonly="readonly">
-                            @endif
-                          </div>
-                        </div>
-                      </div> 
-                      <div class="row">
-                        <div class="form-group col-6">
-                          <label for="total_price">Total Harga Pesanan</label>
-                          <input id="" type="text" class="form-control" name="" value="{{ $total  }}" readonly="readonly" >
-                        </div>
-                        <div class="form-group col-6">
-                          <label for="total_price" class="fw-bold">Total Pembayaran</label>
-                            @if($order->voucher->voucher_type === 0)
-                            <input class="form-control text-center" id="total_price" type="text" name="total_price" value="{{ $total - ($order->price * $order->voucher->value / 100 ) }}" readonly="readonly">
-                            @elseif ($order->voucher->voucher_type === 1)
-                            <input class="form-control text-center" id="total_price" type="text" name="total_price" value="{{ $total - ( $order->voucher->value) }}" readonly="readonly">
-                            @endif
-                        </div>
-                      </div>
-                    @else
+<div class="modal fade" id="payment" tabindex="-1" aria-labelledby="message" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+
+        @if ($orders->where('status', '<', '2')->count() > 0)
+          <p>Ada order yang belum selesai nih :(</p>
+        @else
+         @php
+            $total = $orders->sum('price');
+            $order_finish = $orders->where('status', '2');
+            $orderWithVoucher = $orders->firstWhere('voucher_id', '!=', null);
+
+            $voucherApplied = null;
+            $voucherUsed = false;
+            $discount = 0;
+            $finalTotal = $total;
+
+            if ($orderWithVoucher) {
+                $voucher = $orderWithVoucher->voucher;
+                $voucher_id = $voucher->id ?? null;
+
+                // 🔧 panggil model pakai namespace langsung
+                $voucherUsed = \App\Models\Order::where('customer_id', $customer->id)
+                    ->where('voucher_id', $voucher_id)
+                    ->whereNotNull('transaction_id')
+                    ->exists();
+
+                if (!$voucherUsed && $voucher) {
+                    if ($voucher->voucher_type == 0) {
+                        $discount = ($voucher->value / 100) * $total;
+                        $voucherApplied = "Potongan {$voucher->value}%";
+                    } else {
+                        $discount = $voucher->value;
+                        $voucherApplied = "Potongan Rp" . number_format($voucher->value, 0, ',', '.');
+                    }
+                    $finalTotal -= $discount;
+                }
+            }
+        @endphp
+
+
+          <form action="/admin/transaction/payment" method="post">
+            @csrf
+            <div class="modal-body">
+              <input type="hidden" name="order_type" value="0">
+              <input type="hidden" name="customer_id" value="{{ $customer->id }}">
+              <input type="hidden" name="payment_status" value="0">
+
+              {{-- Voucher --}}
+              @if ($orderWithVoucher && $voucher)
+                <label class="fw-bold mb-2">Voucher diterapkan</label>
+
+                @if ($voucherUsed)
+                  <div class="alert alert-warning">
+                    Voucher <strong>{{ $voucher->name }}</strong> sudah pernah digunakan, harga normal berlaku.
+                  </div>
+                @else
+                  <div class="row mb-3">
+                    <div class="col-6">
                       <div class="form-group">
-                          <label for="total_price" class="fw-bold">Total Pembayaran</label>
-                          <input id="total_price" type="text" class="form-control" name="total_price" value="{{ $total  }}" readonly="readonly" >
-                        </div>
-                    @endif
-                  <div class="form-group">
-                    <label for="payment_method">Metode Pembayaran</label>
-                    <select name="payment_method" class="form-control" id="payment_method" value=" {{ old('payment_status') }}">
-                      <option value="">-- Pilih Metode Pembayaran --</option>
-                      <option value="cash">Cash</option>
-                      <option value="debit">Debit</option>
-                    </select>
-                  </div>
-                  <div id="payment_fields" class="form-group row d-none">
-                    <div class="form-group col-6">
-                        <label for="payment_method">Total dibayar</label>
-                        <input id="cash" type="text" class="form-control" name="value" value="" placeholder="Total dibayar"  >
+                        <label>{{ $voucher->name }}</label>
+                        <input class="form-control text-center" readonly value="{{ $voucherApplied }}">
+                      </div>
                     </div>
-                    <div class="form-group col-6" id="kembalian_wrapper">
-                      <label for="kembalian">Kembalian</label>
-                      <input id="kembalian" type="text" class="form-control" name="kembalian"  value="" readonly="readonly" >
+                    <div class="col-6">
+                      <div class="form-group">
+                        <label>Jumlah Potongan</label>
+                        <input class="form-control text-center" readonly value="-{{ number_format($discount, 0, ',', '.') }}">
+                      </div>
                     </div>
                   </div>
-                  {{-- <div class="form-group row text-center">
-                    <div class="form-group col-6">
-                      <label for="payment_method">Cash</label>
-                      <input id="cash" type="text" class="form-control" name="cash" value="" placeholder="Cash"  >
-                    </div>
-                    <div class="form-group col-6">
-                      <label for="payment_method">Debit</label>
-                      <input id="debit" type="text" class="form-control" name="debit" value="" placeholder="Debit" >
-                    </div>
-                  </div> --}}
-                  {{-- <div class="form-group">
-                    <label for="kembalian">Kembalian</label>
-                    <input id="kembalian" type="text" class="form-control" name="kembalian"  value="" readonly="readonly" >
-                  </div> --}}
-                  
+                @endif
+              @endif
+
+              {{-- Total Harga --}}
+              <div class="row mb-2">
+                <div class="col-6">
+                  <label>Total Harga Pesanan</label>
+                  <input class="form-control" readonly value="{{ number_format($total, 0, ',', '.') }}">
                 </div>
-                <div class="modal-footer">
-                  <div class="text-end">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan</button>
-                  </div>
+                <div class="col-6">
+                  <label class="fw-bold">Total Pembayaran</label>
+                  <input class="form-control fw-bold text-center" name="total_price" readonly
+                    value="{{ number_format($voucherUsed ? $total : $finalTotal, 0, ',', '.') }}">
                 </div>
-              </form>
-            @endif
-          </div>
-        </div>
+              </div>
+
+              {{-- Metode Pembayaran --}}
+              <div class="form-group">
+                <label>Metode Pembayaran</label>
+                <select name="payment_method" id="payment_method" class="form-control">
+                  <option value="">-- Pilih Metode Pembayaran --</option>
+                  <option value="cash">Cash</option>
+                  <option value="debit">Debit</option>
+                </select>
+              </div>
+
+              <div id="payment_fields" class="form-group row d-none mt-2">
+                <div class="col-6">
+                  <label>Total dibayar</label>
+                  <input id="cash" type="text" class="form-control" name="value" placeholder="Total dibayar">
+                </div>
+                <div class="col-6" id="kembalian_wrapper">
+                  <label for="kembalian">Kembalian</label>
+                  <input id="kembalian" type="text" class="form-control" name="kembalian" readonly>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+              <button type="submit" class="btn btn-primary">Simpan</button>
+            </div>
+          </form>
+        @endif
+
       </div>
-    </div> 
+    </div>
+  </div>
+</div>
 
   </div>
 
