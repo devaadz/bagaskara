@@ -1,0 +1,106 @@
+.imgProduct {
+  background-color: black;
+  object-fit: cover;
+  object-position: center;
+  height: 50%px;
+  width: 50%px;
+  overflow: hidden;
+}
+.imgModal {
+  background-color: black;
+  object-fit: cover;
+  object-position: center;
+  height: 50%;
+  /* width: 50%; */
+  overflow: hidden;
+}
+
+/* scroller */
+
+.wrapper {
+  position:relative;
+  margin:0 auto;
+  overflow:hidden;
+padding:5px;
+  height:50px;
+}
+
+.list {
+  position:absolute;
+  left:0px;
+  top:0px;
+  min-width:3000px;
+  margin-left:12px;
+  margin-top:0px;
+}
+
+.list li{
+display:table-cell;
+  position:relative;
+  text-align:center;
+  cursor:grab;
+  cursor:-webkit-grab;
+  color:#efefef;
+  vertical-align:middle;
+}
+
+.scroller {
+text-align:center;
+cursor:pointer;
+display:none;
+padding:7px;
+padding-top:11px;
+white-space:no-wrap;
+vertical-align:middle;
+background-color:#fff;
+}
+
+.scroller-right{
+float:right;
+}
+
+.scroller-left {
+float:left;
+}
+
+
+.product-section .product-card {
+    border: 1px solid #e5e7eb;
+    transition: all 0.25s ease-in-out;
+    background-color: #fff;
+  }
+
+  .product-section .product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .product-section .product-image {
+    height: 160px;
+    width: 100%;
+    object-fit: cover;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .product-section .card-body {
+    padding: 10px 8px;
+  }
+
+  .product-section .card-body h6 {
+    font-size: 1rem;
+    color: #1f2937;
+  }
+
+  .product-section .card-body p {
+    font-size: 0.9rem;
+  }
+
+  /* Responsif: rapat di mobile */
+  @media (max-width: 576px) {
+    .product-section .product-image {
+      height: 130px;
+    }
+    .product-section .card-body h6 {
+      font-size: 0.95rem;
+    }
+  }
